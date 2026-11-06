@@ -1,0 +1,19 @@
+// GRP - 系统状态上报
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message SystemStatus {
+  double cpu_usage = 1;
+  uint64 memory_total = 2;
+  uint64 memory_used = 3;
+  uint64 disk_total = 4;
+  uint64 disk_used = 5;
+  double temperature = 6;
+  uint64 network_rx_bytes = 7;
+  uint64 network_tx_bytes = 8;
+  uint64 uptime = 9;
+  string hostname = 10;
+}

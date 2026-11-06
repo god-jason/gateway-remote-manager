@@ -1,0 +1,26 @@
+// GRP - 通用：请求 / 响应 / 错误
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message Request {
+  string operation = 1;        // 操作名
+  bytes body = 2;              // 请求体
+  uint32 timeout_ms = 3;       // 超时（毫秒）
+  string idempotency_key = 4;  // 幂等键
+}
+
+message Response {
+  bool success = 1;
+  bytes body = 2;
+  Error error = 3;
+}
+
+message Error {
+  uint32 code = 1;
+  string message = 2;
+  string detail = 3;
+  bool retryable = 4;
+}

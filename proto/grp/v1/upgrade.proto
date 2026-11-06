@@ -1,0 +1,32 @@
+// GRP - 软件升级
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message UpgradeCheck {
+  string os = 1;
+  string arch = 2;
+  string current_version = 3;
+}
+
+message UpgradeStart {
+  string upgrade_id = 1;
+  string url = 2;
+  string version = 3;
+  string sha256 = 4;
+}
+
+message UpgradeProgress {
+  string upgrade_id = 1;
+  uint32 progress = 2;
+  string stage = 3;
+}
+
+message UpgradeResult {
+  string upgrade_id = 1;
+  bool success = 2;
+  string version = 3;
+  string error = 4;
+}

@@ -1,0 +1,42 @@
+// GRP - 文件传输
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message FileTransferOpen {
+  string transfer_id = 1;
+  string session_id = 2;
+  string path = 3;
+  string direction = 4;   // upload / download
+  uint64 file_size = 5;
+  string sha256 = 6;
+  uint32 chunk_size = 7;
+  bool overwrite = 8;
+}
+
+message FileChunk {
+  string transfer_id = 1;
+  uint64 offset = 2;
+  bytes data = 3;
+  uint32 checksum = 4;
+}
+
+message FileAck {
+  string transfer_id = 1;
+  uint64 received_offset = 2;
+  uint32 window_size = 3;
+}
+
+message DirectoryListRequest {
+  string path = 1;
+}
+
+message FileEntry {
+  string name = 1;
+  bool is_dir = 2;
+  uint64 size = 3;
+  uint32 mode = 4;
+  int64 modified_at = 5;
+}

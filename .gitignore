@@ -1,0 +1,10 @@
+/agent/agent
+/agent/agent.exe
+/server/server
+/server/server.exe
+/agent/agent.yaml
+/agent_identity.json
+/web/node_modules/
+/web/dist/
+*.log
+/logs/

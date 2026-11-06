@@ -1,0 +1,43 @@
+// GRP - 任务
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+enum TaskStatus {
+  TASK_UNSPECIFIED = 0;
+  PENDING = 1;
+  ACCEPTED = 2;
+  RUNNING = 3;
+  SUCCESS = 4;
+  FAILED = 5;
+  TIMEOUT = 6;
+  CANCELLED = 7;
+  UNKNOWN = 8;
+}
+
+message TaskCreate {
+  string task_id = 1;
+  string task_type = 2;
+  bytes payload = 3;
+  uint32 timeout_seconds = 4;
+  bool idempotent = 5;
+  int64 expires_at = 6;
+}
+
+message TaskProgress {
+  string task_id = 1;
+  uint32 progress = 2;
+  string message = 3;
+}
+
+message TaskResult {
+  string task_id = 1;
+  TaskStatus status = 2;
+  int32 exit_code = 3;
+  bytes output = 4;
+  string error = 5;
+  int64 started_at = 6;
+  int64 finished_at = 7;
+}

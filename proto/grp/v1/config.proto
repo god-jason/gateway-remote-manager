@@ -1,0 +1,26 @@
+// GRP - 配置同步
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message ConfigObject {
+  string config_id = 1;
+  string config_type = 2;
+  uint64 version = 3;
+  bytes content = 4;
+  string checksum = 5;
+}
+
+message ConfigSync {
+  ConfigObject config = 1;
+  bool force = 2;
+}
+
+message ConfigResult {
+  string config_id = 1;
+  uint64 version = 2;
+  bool success = 3;
+  string error = 4;
+}

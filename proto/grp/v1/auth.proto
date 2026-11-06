@@ -1,0 +1,50 @@
+// GRP - 连接握手与设备认证
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message Hello {
+  string device_id = 1;
+  string device_key = 2;          // 仅首次注册时携带
+  string agent_version = 3;
+  string protocol_version = 4;
+  string os = 5;
+  string arch = 6;
+  string nonce = 7;
+  repeated string supported_codecs = 8;
+}
+
+message Challenge {
+  string challenge_id = 1;
+  string nonce = 2;
+  int64 expires_at = 3;
+  repeated string supported_versions = 4;
+}
+
+message Authenticate {
+  string device_id = 1;
+  string challenge_id = 2;
+  bytes signature = 3;            // HMAC-SHA256(device_key, challenge.nonce)
+  string credential_version = 4;
+}
+
+message AuthenticateResult {
+  bool success = 1;
+  string connection_id = 2;
+  string server_node_id = 3;
+  uint32 heartbeat_interval = 4;
+  uint32 heartbeat_timeout = 5;
+  uint32 max_streams = 6;
+  uint32 max_frame_size = 7;
+  string message = 8;
+}
+
+message Capabilities {
+  repeated string features = 1;
+  repeated string commands = 2;
+  uint32 max_terminal_sessions = 3;
+  uint32 max_file_transfers = 4;
+  uint64 max_file_size = 5;
+}

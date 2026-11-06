@@ -1,0 +1,26 @@
+// GRP - Stream 多路复用帧
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+enum StreamAction {
+  STREAM_UNSPECIFIED = 0;
+  OPEN = 1;
+  OPEN_ACK = 2;
+  DATA = 3;
+  WINDOW_UPDATE = 4;
+  HALF_CLOSE = 5;
+  CLOSE = 6;
+  RESET = 7;
+}
+
+message StreamFrame {
+  uint32 stream_id = 1;
+  StreamAction action = 2;
+  uint64 offset = 3;
+  bytes data = 4;
+  uint32 window_size = 5;
+  string content_type = 6;
+}

@@ -1,0 +1,31 @@
+// GRP (Gateway Remote Protocol) - 统一消息头
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+enum MessageKind {
+  MESSAGE_KIND_UNSPECIFIED = 0;
+  REQUEST = 1;
+  RESPONSE = 2;
+  EVENT = 3;
+  STREAM = 4;
+  CONTROL = 5;
+}
+
+// 所有 GRP 消息统一使用 Envelope 包装
+message Envelope {
+  uint32 version = 1;      // 协议版本
+  MessageKind kind = 2;    // 消息类型
+  string type = 3;         // 业务消息名称 (模块.资源.动作)
+  string message_id = 4;   // 消息唯一 ID
+  string request_id = 5;   // 请求关联 ID
+  string session_id = 6;   // 会话 ID
+  string device_id = 7;    // 设备 ID
+  uint64 sequence = 8;     // 消息序号
+  int64 timestamp = 9;     // Unix 毫秒时间戳
+  uint32 flags = 10;       // 消息标志
+  bytes payload = 11;      // 业务数据
+  string trace_id = 12;    // 链路追踪 ID
+}

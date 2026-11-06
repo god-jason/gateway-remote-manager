@@ -1,0 +1,21 @@
+// GRP - 心跳
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message Heartbeat {
+  uint64 agent_uptime = 1;
+  uint64 sequence = 2;
+  uint32 active_sessions = 3;
+  uint32 active_tasks = 4;
+  uint32 pending_events = 5;
+  string agent_state = 6;
+}
+
+message HeartbeatAck {
+  int64 server_time = 1;
+  uint32 next_heartbeat_interval = 2;
+  bool sync_required = 3;
+}

@@ -1,0 +1,9 @@
+# Gateway Agent 配置样例
+agent:
+  server: ws://127.0.0.1:8080/agent/ws
+  heartbeat_interval: 30
+  report_interval: 30
+  identity_file: agent_identity.json
+
+log:
+  level: info

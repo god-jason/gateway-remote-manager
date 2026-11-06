@@ -1,0 +1,26 @@
+# Gateway Server 配置样例（生产环境请修改 admin_password 与数据库口令）
+db:
+  enable: true
+  driver: mysql          # 支持 mysql / postgres
+  host: 127.0.0.1
+  port: 3306
+  database: gateway_manager
+  username: root
+  password: ""
+  sync: true
+
+web:
+  host: 0.0.0.0
+  port: 8080
+  static: web/dist
+
+log:
+  level: info
+
+auth:
+  allow_auto_register: true
+  admin_user: admin
+  admin_password: admin123
+
+jwt:
+  secret: gateway-manager-secret-key-change-me

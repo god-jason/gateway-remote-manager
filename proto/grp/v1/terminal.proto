@@ -1,0 +1,36 @@
+// GRP - 远程终端
+syntax = "proto3";
+
+package grp.v1;
+
+option go_package = "gateway-manager/pb/grpv1;grpv1";
+
+message TerminalOpen {
+  string session_id = 1;
+  string shell = 2;
+  string user = 3;
+  uint32 rows = 4;
+  uint32 cols = 5;
+  string working_directory = 6;
+}
+
+message TerminalInput {
+  string session_id = 1;
+  bytes data = 2;
+}
+
+message TerminalOutput {
+  string session_id = 1;
+  bytes data = 2;
+}
+
+message TerminalResize {
+  string session_id = 1;
+  uint32 rows = 2;
+  uint32 cols = 3;
+}
+
+message TerminalClose {
+  string session_id = 1;
+  uint32 reason = 2;
+}
