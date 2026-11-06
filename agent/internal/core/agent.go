@@ -20,6 +20,7 @@ import (
 	"gateway-manager/agent/internal/system"
 	taskmgr "gateway-manager/agent/internal/task"
 	"gateway-manager/agent/internal/terminal"
+	upgrademgr "gateway-manager/agent/internal/upgrade"
 	"gateway-manager/pkg/config"
 	"gateway-manager/pkg/grpv1"
 	"gateway-manager/pkg/logger"
@@ -144,6 +145,9 @@ func (a *Agent) runOnce(ctx context.Context) error {
 
 	// 任务执行
 	a.registerTaskOps(client)
+
+	// 在线升级
+	a.registerUpgradeOps(client)
 
 	done := make(chan struct{})
 	var once sync.Once
@@ -609,5 +613,48 @@ func (a *Agent) registerTaskOps(client *grpv1.WebsocketClient) {
 
 func taskAckEnvelope(success bool, taskID, message string) *grpv1.Envelope {
 	payload, _ := grpv1.MarshalPayload(grpv1.TaskCreateResult{Success: success, TaskID: taskID, Message: message})
+	return &grpv1.Envelope{Payload: payload}
+}
+
+// registerUpgradeOps 注册在线升级处理器
+func (a *Agent) registerUpgradeOps(client *grpv1.WebsocketClient) {
+	sendProgress := func(p grpv1.UpgradeProgress) {
+		if env, err := grpv1.NewEventEnvelope(grpv1.TypeUpgradeProgress, a.identity.DeviceID, p); err == nil {
+			_ = client.Send(context.Background(), env)
+		}
+	}
+	sendResult := func(r grpv1.UpgradeResult) {
+		if env, err := grpv1.NewEventEnvelope(grpv1.TypeUpgradeResult, a.identity.DeviceID, r); err == nil {
+			_ = client.Send(context.Background(), env)
+		}
+	}
+
+	client.RegisterHandler(grpv1.TypeUpgradeStart, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var start grpv1.UpgradeStart
+		if err := grpv1.UnmarshalPayload(env.Payload, &start); err != nil {
+			return upgradeAckEnvelope(false, "", err.Error()), nil
+		}
+		if start.UpgradeID == "" || start.URL == "" {
+			return upgradeAckEnvelope(false, start.UpgradeID, "缺少 upgrade_id 或 url"), nil
+		}
+		go func() {
+			upgrademgr.Execute(ctx, start, sendProgress, func(r grpv1.UpgradeResult) {
+				sendResult(r)
+				if r.Status == "success" {
+					time.Sleep(500 * time.Millisecond)
+					upgrademgr.Restart()
+				}
+			})
+		}()
+		return upgradeAckEnvelope(true, start.UpgradeID, ""), nil
+	})
+}
+
+func upgradeAckEnvelope(success bool, upgradeID, message string) *grpv1.Envelope {
+	status := "success"
+	if !success {
+		status = "failed"
+	}
+	payload, _ := grpv1.MarshalPayload(grpv1.UpgradeResult{UpgradeID: upgradeID, Status: status, Message: message})
 	return &grpv1.Envelope{Payload: payload}
 }

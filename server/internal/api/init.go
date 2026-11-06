@@ -7,6 +7,9 @@ import "github.com/gin-gonic/gin"
 func InitRouter(r *gin.RouterGroup) {
 	r.POST("/login", Login)
 
+	// 公开路由（Agent 下载升级包不需要认证）
+	RegisterUpgradePublic(r)
+
 	r.Use(JWTAuth())
 
 	r.GET("/me", Me)
@@ -20,4 +23,5 @@ func InitRouter(r *gin.RouterGroup) {
 	registerFsRoutes(r)
 	registerConfigRoutes(r)
 	registerTaskRoutes(r)
+	registerUpgradeRoutes(r)
 }

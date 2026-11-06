@@ -13,7 +13,8 @@ const routes = [
       { path: 'terminal/:deviceId', component: () => import('@/views/device/Terminal.vue') },
       { path: 'files/:deviceId', component: () => import('@/views/device/Files.vue') },
       { path: 'config/:deviceId', component: () => import('@/views/device/Config.vue') },
-      { path: 'task/:deviceId', component: () => import('@/views/device/Task.vue') }
+      { path: 'task/:deviceId', component: () => import('@/views/device/Task.vue') },
+      { path: 'upgrade', component: () => import('@/views/Upgrade.vue') }
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' }

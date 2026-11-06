@@ -24,9 +24,11 @@ func main() {
 	// 服务端模块默认值
 	config.SetDefault("server", "heartbeat_interval", 30)
 	config.SetDefault("server", "heartbeat_timeout", 90)
+	config.SetDefault("upgrade", "dir", "./uploads/upgrades")
+	config.SetDefault("upgrade", "base_url", "")
 
 	// 数据模型注册（db.sync=true 时自动同步表结构）
-	db.Register(new(types.Device), new(types.DeviceCredential), new(types.Config), new(types.Task))
+	db.Register(new(types.Device), new(types.DeviceCredential), new(types.Config), new(types.Task), new(types.AgentRelease), new(types.UpgradeTask))
 
 	if err := boot.Startup(); err != nil {
 		logger.Error("启动失败", "error", err)

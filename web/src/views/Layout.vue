@@ -17,6 +17,10 @@
           <el-icon><Monitor /></el-icon>
           <span>网关管理</span>
         </el-menu-item>
+        <el-menu-item index="/upgrade">
+          <el-icon><Upload /></el-icon>
+          <span>升级管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
