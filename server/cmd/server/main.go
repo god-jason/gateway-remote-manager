@@ -26,7 +26,7 @@ func main() {
 	config.SetDefault("server", "heartbeat_timeout", 90)
 
 	// 数据模型注册（db.sync=true 时自动同步表结构）
-	db.Register(new(types.Device), new(types.DeviceCredential))
+	db.Register(new(types.Device), new(types.DeviceCredential), new(types.Config), new(types.Task))
 
 	if err := boot.Startup(); err != nil {
 		logger.Error("启动失败", "error", err)

@@ -14,10 +14,13 @@ import (
 
 	"github.com/google/uuid"
 
+	configmgr "gateway-manager/agent/internal/config"
 	"gateway-manager/agent/internal/filesystem"
 	"gateway-manager/agent/internal/identity"
 	"gateway-manager/agent/internal/system"
+	taskmgr "gateway-manager/agent/internal/task"
 	"gateway-manager/agent/internal/terminal"
+	"gateway-manager/pkg/config"
 	"gateway-manager/pkg/grpv1"
 	"gateway-manager/pkg/logger"
 )
@@ -132,6 +135,15 @@ func (a *Agent) runOnce(ctx context.Context) error {
 
 	// 文件传输
 	a.registerFiles(client)
+
+	// 文件管理（目录/重命名/删除/编辑等）
+	a.registerFsOps(client)
+
+	// 配置管理
+	a.registerConfigOps(client)
+
+	// 任务执行
+	a.registerTaskOps(client)
 
 	done := make(chan struct{})
 	var once sync.Once
@@ -361,29 +373,29 @@ func (a *Agent) registerFiles(client *grpv1.WebsocketClient) {
 	client.RegisterHandler(grpv1.TypeFileOpen, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
 		var open grpv1.FileTransferOpen
 		if err := grpv1.UnmarshalPayload(env.Payload, &open); err != nil {
-			return fileAckEnvelope(false, "", "", err.Error()), nil
+			return fileAckEnvelope(false, "", 0, err.Error()), nil
 		}
 		stream := client.GetStream(open.StreamID)
 		if stream == nil {
-			return fileAckEnvelope(false, open.TransferID, "", "stream not found"), nil
+			return fileAckEnvelope(false, open.TransferID, 0, "stream not found"), nil
 		}
 
 		switch open.Direction {
 		case grpv1.DirectionDownload:
 			info, err := os.Stat(filepath.Clean(open.Path))
 			if err != nil {
-				return fileAckEnvelope(false, open.TransferID, "", err.Error()), nil
+				return fileAckEnvelope(false, open.TransferID, 0, err.Error()), nil
 			}
 			if info.IsDir() {
-				return fileAckEnvelope(false, open.TransferID, "", "目标为目录"), nil
+				return fileAckEnvelope(false, open.TransferID, 0, "目标为目录"), nil
 			}
 			go filesystem.Download(ctx, stream, open.Path, sendResult)
 			return fileAckEnvelope(true, open.TransferID, info.Size(), ""), nil
 		case grpv1.DirectionUpload:
 			go filesystem.Upload(ctx, stream, open, sendResult)
-			return fileAckEnvelope(true, open.TransferID, "", ""), nil
+			return fileAckEnvelope(true, open.TransferID, 0, ""), nil
 		default:
-			return fileAckEnvelope(false, open.TransferID, "", "未知传输方向"), nil
+			return fileAckEnvelope(false, open.TransferID, 0, "未知传输方向"), nil
 		}
 	})
 }
@@ -396,5 +408,206 @@ func fileAckEnvelope(success bool, transferID string, fileSize int64, message st
 		FileSize:   fileSize,
 		Message:    message,
 	})
+	return &grpv1.Envelope{Payload: payload}
+}
+
+// registerFsOps 注册文件管理处理器（目录/重命名/删除/编辑等）
+func (a *Agent) registerFsOps(client *grpv1.WebsocketClient) {
+	root := config.GetString("agent", "fs_root")
+	fs0 := filesystem.NewSandbox(root)
+
+	client.RegisterHandler(grpv1.TypeFsDirList, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.PathRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		entries, err := fs0.List(req.Path)
+		if err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		return fsResultEnvelope(grpv1.FsResult{Success: true, Path: req.Path, Entries: entries}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsDirCreate, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.PathRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		err := fs0.CreateDir(req.Path)
+		return fsResultEnvelope(grpv1.FsResult{Success: err == nil, Path: req.Path, Message: errMsg(err)}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsFileDelete, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.PathRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		err := fs0.Delete(req.Path)
+		return fsResultEnvelope(grpv1.FsResult{Success: err == nil, Path: req.Path, Message: errMsg(err)}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsFileRename, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.RenameRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		err := fs0.Rename(req.Path, req.NewPath)
+		return fsResultEnvelope(grpv1.FsResult{Success: err == nil, Path: req.Path, Message: errMsg(err)}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsFileCopy, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.CopyRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		err := fs0.Copy(req.Path, req.Dest)
+		return fsResultEnvelope(grpv1.FsResult{Success: err == nil, Path: req.Path, Message: errMsg(err)}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsFileInfo, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.PathRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		entry, err := fs0.Stat(req.Path)
+		if err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		return fsResultEnvelope(grpv1.FsResult{Success: true, Path: req.Path, Entry: entry}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsFileRead, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.PathRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		content, size, truncated, err := fs0.ReadText(req.Path)
+		if err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		return fsResultEnvelope(grpv1.FsResult{Success: true, Path: req.Path, Content: content, Size: size, Truncated: truncated}), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeFsFileWrite, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.WriteRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return fsResultEnvelope(grpv1.FsResult{Success: false, Message: err.Error()}), nil
+		}
+		err := fs0.WriteText(req.Path, req.Content)
+		return fsResultEnvelope(grpv1.FsResult{Success: err == nil, Path: req.Path, Message: errMsg(err)}), nil
+	})
+}
+
+func errMsg(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func fsResultEnvelope(r grpv1.FsResult) *grpv1.Envelope {
+	payload, _ := grpv1.MarshalPayload(r)
+	return &grpv1.Envelope{Payload: payload}
+}
+
+// registerConfigOps 注册配置管理处理器
+func (a *Agent) registerConfigOps(client *grpv1.WebsocketClient) {
+	root := config.GetString("agent", "config_root")
+	mgr := configmgr.NewManager(root)
+
+	client.RegisterHandler(grpv1.TypeConfigList, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		configs, err := mgr.List()
+		if err != nil {
+			payload, _ := grpv1.MarshalPayload(grpv1.ConfigListResult{Success: false, Message: err.Error()})
+			return &grpv1.Envelope{Payload: payload}, nil
+		}
+		payload, _ := grpv1.MarshalPayload(grpv1.ConfigListResult{Success: true, Configs: configs})
+		return &grpv1.Envelope{Payload: payload}, nil
+	})
+
+	client.RegisterHandler(grpv1.TypeConfigGet, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.ConfigKeyRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return configResultEnvelope(nil, err.Error()), nil
+		}
+		obj, found, err := mgr.Get(req.ConfigKey)
+		if err != nil {
+			return configResultEnvelope(nil, err.Error()), nil
+		}
+		if !found {
+			return configResultEnvelope(nil, "配置不存在"), nil
+		}
+		return configResultEnvelope(obj, ""), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeConfigSet, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.ConfigSetRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return configResultEnvelope(nil, err.Error()), nil
+		}
+		obj, err := mgr.Set(req.ConfigKey, req.Content, req.Checksum)
+		if err != nil {
+			return configResultEnvelope(nil, err.Error()), nil
+		}
+		return configResultEnvelope(obj, ""), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeConfigDelete, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.ConfigKeyRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return configResultEnvelope(nil, err.Error()), nil
+		}
+		if err := mgr.Delete(req.ConfigKey); err != nil {
+			return configResultEnvelope(nil, err.Error()), nil
+		}
+		payload, _ := grpv1.MarshalPayload(grpv1.ConfigResult{Success: true})
+		return &grpv1.Envelope{Payload: payload}, nil
+	})
+}
+
+func configResultEnvelope(obj *grpv1.ConfigObject, msg string) *grpv1.Envelope {
+	r := grpv1.ConfigResult{Success: obj != nil && msg == "", Message: msg, Config: obj}
+	payload, _ := grpv1.MarshalPayload(r)
+	return &grpv1.Envelope{Payload: payload}
+}
+
+// registerTaskOps 注册任务执行处理器
+func (a *Agent) registerTaskOps(client *grpv1.WebsocketClient) {
+	mgr := taskmgr.NewManager()
+
+	sendResult := func(r grpv1.TaskResult) {
+		if env, err := grpv1.NewEventEnvelope(grpv1.TypeTaskResult, a.identity.DeviceID, r); err == nil {
+			_ = client.Send(context.Background(), env)
+		}
+	}
+
+	client.RegisterHandler(grpv1.TypeTaskCreate, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var create grpv1.TaskCreate
+		if err := grpv1.UnmarshalPayload(env.Payload, &create); err != nil {
+			return taskAckEnvelope(false, "", err.Error()), nil
+		}
+		if create.TaskID == "" || create.Command == "" {
+			return taskAckEnvelope(false, create.TaskID, "缺少 task_id 或 command"), nil
+		}
+		if err := mgr.Execute(ctx, create, sendResult); err != nil {
+			return taskAckEnvelope(false, create.TaskID, err.Error()), nil
+		}
+		return taskAckEnvelope(true, create.TaskID, ""), nil
+	})
+
+	client.RegisterHandler(grpv1.TypeTaskCancel, func(ctx context.Context, env *grpv1.Envelope) (*grpv1.Envelope, error) {
+		var req grpv1.TaskCancelRequest
+		if err := grpv1.UnmarshalPayload(env.Payload, &req); err != nil {
+			return taskAckEnvelope(false, "", err.Error()), nil
+		}
+		if err := mgr.Cancel(req.TaskID); err != nil {
+			return taskAckEnvelope(false, req.TaskID, err.Error()), nil
+		}
+		return taskAckEnvelope(true, req.TaskID, ""), nil
+	})
+}
+
+func taskAckEnvelope(success bool, taskID, message string) *grpv1.Envelope {
+	payload, _ := grpv1.MarshalPayload(grpv1.TaskCreateResult{Success: success, TaskID: taskID, Message: message})
 	return &grpv1.Envelope{Payload: payload}
 }

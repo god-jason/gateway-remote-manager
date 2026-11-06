@@ -52,6 +52,8 @@ func main() {
 	config.SetDefault("agent", "identity_file", "agent_identity.json")
 	config.SetDefault("agent", "heartbeat_interval", 30)
 	config.SetDefault("agent", "report_interval", 30)
+	config.SetDefault("agent", "fs_root", "/")
+	config.SetDefault("agent", "config_root", "configs")
 	config.SetDefault("log", "level", "info")
 	if err := config.Load(true); err != nil {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)

@@ -15,4 +15,9 @@ func InitRouter(r *gin.RouterGroup) {
 	r.POST("/device/search", DeviceSearch)
 	r.GET("/device/:id", DeviceGet)
 	r.DELETE("/device/:id", DeviceDelete)
+
+	registerFileRoutes(r)
+	registerFsRoutes(r)
+	registerConfigRoutes(r)
+	registerTaskRoutes(r)
 }

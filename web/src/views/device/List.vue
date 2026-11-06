@@ -37,9 +37,12 @@
         </template>
       </el-table-column>
       <el-table-column prop="agent_version" label="版本" width="90" />
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :disabled="!row.online" @click="openTerminal(row)">终端</el-button>
+          <el-button link type="primary" :disabled="!row.online" @click="openFiles(row)">文件</el-button>
+          <el-button link type="primary" @click="openConfig(row)">配置</el-button>
+          <el-button link type="primary" :disabled="!row.online" @click="openTask(row)">任务</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -109,6 +112,18 @@ function openTerminal(row) {
   router.push(`/terminal/${row.device_id}`)
 }
 
+function openFiles(row) {
+  router.push(`/files/${row.device_id}`)
+}
+
+function openConfig(row) {
+  router.push(`/config/${row.device_id}`)
+}
+
+function openTask(row) {
+  router.push(`/task/${row.device_id}`)
+}
+
 function fmtBytes(n) {
   if (!n) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -140,5 +155,10 @@ onUnmounted(() => {
 .pager {
   margin-top: 16px;
   justify-content: flex-end;
+}
+.file-name {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 13px;
 }
 </style>
